@@ -1,4 +1,4 @@
-"""공유 유틸 함수: 데이터 로딩, 스타일, 너구리 메시지, 수료증 생성"""
+"""공유 유틸 함수: 데이터 로딩, 스타일, raccoon 메시지, 수료증 생성"""
 
 import io
 import random
@@ -15,7 +15,7 @@ RULES_CSV_PATH = BASE_DIR / "data" / "중1_과거형_퀴즈_매력적오답.csv"
 CERT_CSV_PATH = BASE_DIR / "data" / "과거형_3단변화_30문항_이미지포함.csv"
 IMAGES_DIR = BASE_DIR / "data" / "images"
 AUDIO_DIR = BASE_DIR / "data" / "audio"
-MASCOT_PATH = BASE_DIR / "assets" / "너구리.png"
+MASCOT_PATH = BASE_DIR / "assets" / "raccoon.png"
 FONT_REGULAR = BASE_DIR / "assets" / "fonts" / "NanumGothic-Regular.ttf"
 FONT_BOLD = BASE_DIR / "assets" / "fonts" / "NanumGothic-Bold.ttf"
 
