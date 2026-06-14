@@ -1,5 +1,6 @@
+import random
 import streamlit as st
-from utils import inject_global_css, get_irregular_verbs, MASCOT_PATH, LEVEL_LABELS
+from utils import inject_global_css, MASCOT_PATH, load_rules_quiz, random_message
 
 inject_global_css()
 
@@ -7,129 +8,215 @@ col1, col2 = st.columns([1, 5])
 with col1:
     st.image(str(MASCOT_PATH), width=80)
 with col2:
-    st.title("불규칙 변화 📖")
-    st.caption("패턴을 알면 쉬워져요!")
+    st.title("규칙 변화 📝")
+    st.caption("규칙을 배우고 바로 퀴즈로 확인해봐요!")
 
 st.markdown("---")
 
-# ── 동사 변화형이란? ──
-st.markdown("### 동사 변화형이란?")
-st.markdown("""
-영어 동사는 시제에 따라 모양이 바뀌어요.
+quiz_df = load_rules_quiz()
 
-**원형(base form)** → **과거형(past)** → **과거분사(past participle)**  
-이렇게 3가지 형태를 꼭 알아야 해요!
+# ──────────────────────────────────────────
+# 탭별 규칙 설명 정의
+# rule_keys: 이 탭의 퀴즈에 사용할 규칙번호(들)
+# ──────────────────────────────────────────
+TABS = [
+    {
+        "label": "1. 동사원형 + -ed",
+        "rule_keys": ["1"],
+        "title": "가장 일반적인 경우: 동사원형 + -ed",
+        "desc": "대부분의 일반 동사는 정해진 규칙에 따라 변해요. 가장 기본은 동사원형 뒤에 **-ed**를 붙이는 거예요!",
+        "examples": ["want → wanted", "talk → talked", "stay → stayed"],
+        "sentence": ("I <b>listened</b> to jazz music last night.", "나는 어젯밤에 재즈 음악을 들었다."),
+    },
+    {
+        "label": "2. 자음 + e → -d",
+        "rule_keys": ["2"],
+        "title": "자음 + e로 끝나는 경우: -d만 추가",
+        "desc": "이미 **e**로 끝나니까, **d**만 붙이면 돼요. 편하죠? 😎",
+        "examples": ["like → liked", "live → lived", "love → loved"],
+        "sentence": ("Many students <b>liked</b> the new school event.", "많은 학생들이 새 학교 행사를 좋아했다."),
+    },
+    {
+        "label": "3. -y 규칙",
+        "rule_keys": ["3a", "3b"],
+        "title": "-y로 끝나는 경우: 두 가지로 나뉘어요!",
+        "desc": (
+            "**자음 + y**로 끝나면 → y를 **i**로 바꾸고 **-ed** (study → studied)<br>"
+            "**모음 + y**로 끝나면 → 그대로 **-ed** (play → played)<br><br>"
+            "y 앞에 있는 글자가 자음이냐 모음이냐가 핵심이에요! 🔑"
+        ),
+        "examples": ["study → studied", "try → tried", "play → played", "enjoy → enjoyed"],
+        "sentence": ("He <b>studied</b> in the library.", "그는 도서관에서 공부했다."),
+    },
+    {
+        "label": "4. 단모음+단자음 → 자음 겹침",
+        "rule_keys": ["4"],
+        "title": "단모음 + 단자음으로 끝나는 경우: 자음을 한 번 더!",
+        "desc": "짧은 모음 소리 + 자음 하나로 끝나면, 마지막 자음을 **하나 더 쓰고** -ed를 붙여요.",
+        "examples": ["stop → stopped", "plan → planned", "chat → chatted"],
+        "sentence": ("The police <b>stepped</b> into the room carefully.", "경찰이 조심스럽게 방 안으로 발을 들여놓았다."),
+    },
+]
 
-규칙 동사는 뒤에 **-ed**만 붙이면 되지만, 불규칙 동사는 모양이 완전히 달라지거나
-아예 안 바뀌기도 해요. 아래에서 패턴별로 살펴볼게요! 🦝
-""")
+QUESTIONS_PER_QUIZ = 3
 
-st.markdown("---")
 
-# ── 패턴 5가지 ──
-st.markdown("### 불규칙 동사 패턴 5가지")
+def make_quiz_pool(rule_keys):
+    """해당 규칙번호들의 문제를 합쳐 dict 리스트로 반환"""
+    pool = quiz_df[quiz_df["규칙번호"].isin(rule_keys)]
+    return pool.to_dict("records")
 
-c1, c2 = st.columns(2)
-c3, c4 = st.columns(2)
-c5, _ = st.columns(2)
 
-with c1:
-    st.markdown("""
-    <div class="vb-card t-aaa">
-    <h3>A – A – A</h3>
-    <div class="tag">세 형태가 모두 같아요!</div>
-    <div class="example">
-    <b>cut</b> → cut → cut (자르다)<br>
-    <b>put</b> → put → put (두다)<br>
-    <b>hit</b> → hit → hit (치다)<br>
-    <b>read</b> → read → read (읽다)
+def init_quiz(tab_idx, rule_keys):
+    """탭별 퀴즈 상태 초기화 (3문제 랜덤 추출)"""
+    pool = make_quiz_pool(rule_keys)
+    random.shuffle(pool)
+    selected = pool[:QUESTIONS_PER_QUIZ]
+    st.session_state[f"quiz_{tab_idx}"] = {
+        "questions": selected,
+        "idx": 0,
+        "score": 0,
+        "checked": False,
+        "selected_answer": None,
+        "raccoon": random_message("start"),
+        "finished": False,
+    }
+
+
+def build_choices(q):
+    """정답+오답2개 셔플"""
+    choices = [q["정답"], q["오답1"], q["오답2"]]
+    random.shuffle(choices)
+    return choices
+
+
+def render_quiz(tab_idx, rule_keys):
+    state_key = f"quiz_{tab_idx}"
+    if state_key not in st.session_state:
+        init_quiz(tab_idx, rule_keys)
+
+    qs = st.session_state[state_key]
+
+    # ── 결과 화면 ──
+    if qs["finished"]:
+        score = qs["score"]
+        total = len(qs["questions"])
+        st.markdown(f"""
+        <div class="raccoon-row">
+            <div class="raccoon-bubble">{total}문제 중 <b>{score}개</b> 맞았어! {"완벽해! 🏆" if score==total else "잘했어! 🦝"}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("🔄 복습하기 (다른 문제)", key=f"review_{tab_idx}"):
+            init_quiz(tab_idx, rule_keys)
+            st.rerun()
+        return
+
+    q = qs["questions"][qs["idx"]]
+    q_num = qs["idx"] + 1
+    total = len(qs["questions"])
+
+    # 선택지 빌드 (문제별로 고정 — 세션에 저장)
+    choice_key = f"choices_{tab_idx}_{qs['idx']}"
+    if choice_key not in st.session_state:
+        st.session_state[choice_key] = build_choices(q)
+    choices = st.session_state[choice_key]
+
+    # ── 너구리 + 진행 ──
+    st.markdown(f"""
+    <div class="raccoon-row">
+        <div class="raccoon-bubble">{qs['raccoon']}</div>
     </div>
+    """, unsafe_allow_html=True)
+    st.caption(f"문제 {q_num} / {total}")
+
+    # ── 문제 카드 ──
+    st.markdown(f"""
+    <div class="verb-display">
+        <div class="verb-meaning">다음 동사의 과거형은?</div>
+        <div class="verb-base">{q['동사원형']}</div>
     </div>
     """, unsafe_allow_html=True)
 
-with c2:
-    st.markdown("""
-    <div class="vb-card t-aab">
-    <h3>A – A – B</h3>
-    <div class="tag">과거형은 같고, 과거분사만 달라요!</div>
-    <div class="example">
-    <b>beat</b> → beat → <b>beaten</b> (이기다)
-    </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # ── 보기 (라디오) ──
+    picked = st.radio(
+        "정답을 골라봐!",
+        choices,
+        key=f"radio_{tab_idx}_{qs['idx']}",
+        index=None,
+        horizontal=True,
+        disabled=qs["checked"],
+    )
 
-with c3:
-    st.markdown("""
-    <div class="vb-card t-aba">
-    <h3>A – B – A</h3>
-    <div class="tag">원형 = 과거분사, 과거형만 달라요!</div>
-    <div class="example">
-    <b>come</b> → <b>came</b> → come (오다)<br>
-    <b>run</b> → <b>ran</b> → run (달리다)<br>
-    <b>become</b> → <b>became</b> → become (~이 되다)
-    </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # ── 확인하기 / 계속하기 ──
+    if not qs["checked"]:
+        if st.button("확인하기 ✅", key=f"check_{tab_idx}", type="primary"):
+            if picked is None:
+                st.warning("먼저 보기를 골라줘!")
+            else:
+                qs["checked"] = True
+                qs["selected_answer"] = picked
+                if picked == q["정답"]:
+                    qs["score"] += 1
+                st.rerun()
+    else:
+        # 정답/오답 피드백
+        if qs["selected_answer"] == q["정답"]:
+            st.markdown(f"""
+            <div class="raccoon-row">
+                <div class="raccoon-bubble" style="border-left:5px solid var(--green);">
+                정답이에요! 🎉 <b>{q['동사원형']} → {q['정답']}</b>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown(f"""
+            <div class="raccoon-row">
+                <div class="raccoon-bubble" style="border-left:5px solid var(--red);">
+                오답이에요! 🦝 네가 고른 건 <b>{qs['selected_answer']}</b>,
+                정답은 <b>{q['정답']}</b>(이)야!
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
-with c4:
-    st.markdown("""
-    <div class="vb-card t-abb">
-    <h3>A – B – B</h3>
-    <div class="tag">과거형 = 과거분사, 원형만 달라요!</div>
-    <div class="example">
-    <b>bring</b> → brought → brought (가져오다)<br>
-    <b>buy</b> → bought → bought (사다)<br>
-    <b>feel</b> → felt → felt (느끼다)<br>
-    <b>make</b> → made → made (만들다)
-    </div>
-    </div>
-    """, unsafe_allow_html=True)
+        # 예문 표시
+        sentence = str(q.get("예문", "")).strip()
+        if sentence and sentence.lower() != "nan":
+            highlighted = sentence.replace(q["정답"], f"<b style='color:var(--green)'>{q['정답']}</b>")
+            st.markdown(f"<div style='margin:8px 0;color:#555;'>📖 {highlighted}</div>", unsafe_allow_html=True)
 
-with c5:
-    st.markdown("""
-    <div class="vb-card t-abc">
-    <h3>A – B – C</h3>
-    <div class="tag">세 형태가 모두 달라요! 제일 중요!</div>
-    <div class="example">
-    <b>go</b> → went → gone (가다)<br>
-    <b>see</b> → saw → seen (보다)<br>
-    <b>eat</b> → ate → eaten (먹다)<br>
-    <b>write</b> → wrote → written (쓰다)
-    </div>
-    </div>
-    """, unsafe_allow_html=True)
+        is_last = qs["idx"] + 1 >= total
+        btn_label = "결과 보기 →" if is_last else "계속하기 →"
+        if st.button(btn_label, key=f"next_{tab_idx}", type="primary"):
+            if is_last:
+                qs["finished"] = True
+            else:
+                qs["idx"] += 1
+                qs["checked"] = False
+                qs["selected_answer"] = None
+                qs["raccoon"] = random_message("start")
+            st.rerun()
 
-st.markdown("---")
 
-# ── 동사 목록 표 ──
-st.markdown("### 🔥 불규칙 동사 전체 목록")
+# ──────────────────────────────────────────
+# 탭 렌더링
+# ──────────────────────────────────────────
+tabs = st.tabs([t["label"] for t in TABS])
 
-df = get_irregular_verbs()
+for tab_idx, (tab, tab_def) in enumerate(zip(tabs, TABS)):
+    with tab:
+        # 규칙 설명
+        examples_html = "".join(f'<span class="rule-ex">{ex}</span>' for ex in tab_def["examples"])
+        eng, kor = tab_def["sentence"]
+        st.markdown(f"""
+        <div class="vb-card">
+        <h3>{tab_def['title']}</h3>
+        <p>{tab_def['desc']}</p>
+        <div style="margin:10px 0;">{examples_html}</div>
+        <div style="background:var(--green-pale);border-radius:8px;padding:10px 14px;margin-top:10px;">
+        📖 {eng}<br><span style="color:#6b7280;font-size:0.88rem;">{kor}</span>
+        </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-col1, col2 = st.columns(2)
-with col1:
-    level_options = ["전체"] + list(LEVEL_LABELS.values())
-    level_choice = st.selectbox("레벨", level_options)
-with col2:
-    type_options = ["전체"] + sorted(df["type"].unique().tolist())
-    type_choice = st.selectbox("유형", type_options)
-
-filtered = df.copy()
-if level_choice != "전체":
-    level_key = [k for k, v in LEVEL_LABELS.items() if v == level_choice][0]
-    filtered = filtered[filtered["level"] == level_key]
-if type_choice != "전체":
-    filtered = filtered[filtered["type"] == type_choice]
-
-display_df = filtered[["base", "past", "pp", "meaning", "type", "level"]].rename(columns={
-    "base": "원형",
-    "past": "과거형",
-    "pp": "과거분사",
-    "meaning": "뜻",
-    "type": "유형",
-    "level": "레벨",
-})
-display_df["레벨"] = display_df["레벨"].map(LEVEL_LABELS).fillna(display_df["레벨"])
-
-st.dataframe(display_df, use_container_width=True, hide_index=True)
-st.caption(f"총 {len(display_df)}개")
+        st.markdown("#### 🎯 바로 풀어보기")
+        render_quiz(tab_idx, tab_def["rule_keys"])
