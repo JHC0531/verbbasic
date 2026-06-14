@@ -1,4 +1,4 @@
-"""공유 유틸 함수: 데이터 로딩, 스타일, raccoon 메시지, 수료증 생성"""
+"""공유 유틸 함수: 데이터 로딩, 스타일, 너구리 메시지, 수료증 생성"""
 
 import io
 import random
@@ -12,7 +12,7 @@ from PIL import Image, ImageDraw, ImageFont
 BASE_DIR = Path(__file__).parent
 DATA_PATH = BASE_DIR / "data" / "irregular_verbs.csv"
 RULES_CSV_PATH = BASE_DIR / "data" / "rules_quiz.csv"
-CERT_CSV_PATH = BASE_DIR / "data" / "data" / "cert_quiz.csv"
+CERT_CSV_PATH = BASE_DIR / "data" / "cert_quiz.csv"
 IMAGES_DIR = BASE_DIR / "data" / "images"
 AUDIO_DIR = BASE_DIR / "data" / "audio"
 MASCOT_PATH = BASE_DIR / "assets" / "raccoon.png"
@@ -52,7 +52,7 @@ RACCOON_MESSAGES = {
 
 @st.cache_data
 def load_verbs() -> pd.DataFrame:
-    """엑셀 파일을 읽어서 정제된 DataFrame으로 반환"""
+    """CSV 파일을 읽어서 정제된 DataFrame으로 반환"""
     df = pd.read_csv(DATA_PATH)
     df = df.rename(columns={
         "유형": "type",
